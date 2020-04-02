@@ -73,16 +73,16 @@ def update_features(new_fc, live_fc, archive_fc="NA", data_round="NA", archive=T
                     a data_round of 'Spring 2019'.
     '''
     print('\n###')
-    print('Updating {}'.format(live_fc))
+    print(f'Updating {live_fc}')
     print('###')
 
     #: Make sure all our feature classes exist (prevents typos messing things up)
     if not arcpy.Exists(new_fc):
-        raise ValueError('New feature class {} does not exist (typo?)'.format(new_fc))
+        raise ValueError(f'New feature class {new_fc} does not exist (typo?)')
     if not arcpy.Exists(live_fc):
-        raise ValueError('Live feature class {} does not exist (typo?)'.format(live_fc))
+        raise ValueError(f'Live feature class {live_fc} does not exist (typo?)')
     if archive and not arcpy.Exists(archive_fc):
-        raise ValueError('Archive feature class {} does not exist (typo?)'.format(archive_fc))
+        raise ValueError(f'Archive feature class {archive_fc} does not exist (typo?)')
 
     #: Get the provider name from the new feature class
     with arcpy.da.SearchCursor(new_fc, 'UTProvCode') as name_cursor:
@@ -97,22 +97,22 @@ def update_features(new_fc, live_fc, archive_fc="NA", data_round="NA", archive=T
                 providers.append(row[0])
 
     if provider not in providers:
-        raise ValueError('{} not found in list of providers.'.format(provider))
+        raise ValueError(f'{provider} not found in list of providers.')
 
     #: Archive provider's current features
     #: Make layer of only that provider's features from current live feature class
-    print('\nMaking layer of {}\'s current features from {}...'.format(provider, live_fc))
+    print(f'\nMaking layer of {provider}\'s current features from {live_fc}...')
     live_layer_name = 'live'
-    where_clause = '"UTProvCode" = \'{}\''.format(provider)
+    where_clause = f'"UTProvCode" = \'{provider}\''
     live_layer = arcpy.MakeFeatureLayer_management(live_fc, live_layer_name, where_clause)
 
     #: Get number of existing features
     existing_count = arcpy.GetCount_management(live_layer)
-    print('({} existing features in layer)'.format(existing_count))
+    print(f'({existing_count} existing features in layer)')
     
     if archive:
         #: Copy provider's features from the layer to in_memory feature class
-        print('\nCopying {}\'s current features to temporary feature class...'.format(provider))
+        print(f'\nCopying {provider}\'s current features to temporary feature class...')
         live_copy_fc = r'in_memory\live'
         arcpy.CopyFeatures_management(live_layer, live_copy_fc)
 
@@ -129,16 +129,16 @@ def update_features(new_fc, live_fc, archive_fc="NA", data_round="NA", archive=T
 
         #: Append from updated in_memory feature class to archive
     
-        print('\nAppending {}\'s current features to archive feature class {}...'.format(provider, archive_fc))
+        print(f'\nAppending {provider}\'s current features to archive feature class {archive_fc}...')
         arcpy.Append_management(live_copy_fc, archive_fc, 'NO_TEST')
 
 
     #: Delete provider's features from live fc
-    print('\nDeleting {}\'s current features from master feature class {}...'.format(provider, live_fc))
+    print(f'\nDeleting {provider}\'s current features from master feature class {live_fc}...')
     arcpy.DeleteFeatures_management(live_layer)
 
     #: Append new features from local fc to live fc
-    print('\nAppending new features from {} to master feature class {}...'.format(new_fc, live_fc))
+    print(f'\nAppending new features from {new_fc} to master feature class {live_fc}...')
     arcpy.Append_management(new_fc, live_fc, 'TEST')
     print('\n### Finished ###\n')
 
