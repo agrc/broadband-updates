@@ -12,6 +12,13 @@ Generally, you will call update_features() twice- once with archive enabled to c
     to SGID.UTILITIES.BroadbandService feature class.
 '''
 
+#: Manually create new feature class
+#: Archive existing data for provider in BB feature class into archive feature class
+#: Delete existing data from BB feature class
+#: Copy data from new feature class into BB feature class
+#: Delete existing data from SGID feature class
+#: Copy data from new feature class into SGID feature class
+
 import arcpy
 
 
@@ -84,11 +91,11 @@ def update_features(new_fc, live_fc, archive_fc="NA", data_round="NA", archive=T
     if archive and not arcpy.Exists(archive_fc):
         raise ValueError(f'Archive feature class {archive_fc} does not exist (typo?)')
 
-    #: Get the provider name from the new feature class
+    #: Get the new provider name from the new feature class
     with arcpy.da.SearchCursor(new_fc, 'UTProvCode') as name_cursor:
         provider = next(name_cursor)[0]
 
-    #: Make sure provider is valid
+    #: Make sure new provider is valid
     print('\nChecking if provider is valid...')
     providers = []
     with arcpy.da.SearchCursor(live_fc, 'UTProvCode') as scursor:
@@ -97,9 +104,10 @@ def update_features(new_fc, live_fc, archive_fc="NA", data_round="NA", archive=T
                 providers.append(row[0])
 
     if provider not in providers:
-        raise ValueError(f'{provider} not found in list of providers.')
+        raise ValueError(f'{provider} not found in list of existing providers in {live_fc}.')
 
     #: Archive provider's current features
+    #: Apparently, MAXADDNTIA only exists in the archive, not the UBB sde or the SGID.
     #: Make layer of only that provider's features from current live feature class
     print(f'\nMaking layer of {provider}\'s current features from {live_fc}...')
     live_layer_name = 'live'
