@@ -69,11 +69,11 @@ def archive_provider(provider, provider_field, current_data_fc, archive_fc, data
                       'MAXADUP', 'LastEdit', 'LastVerified', 'Identifier', 
                       'DataRound', 'MAXADDNTIA']
 
-    with arcpy.da.SearchCursor(current_data_fc, current_data_fields, where) as current_data_cursor, arcpy.da.UpdateCursor(archive_fc, archive_fields) as archive_cursor:
+    with arcpy.da.SearchCursor(current_data_fc, current_data_fields, where) as current_data_cursor, arcpy.da.InsertCursor(archive_fc, archive_fields) as archive_cursor:
         
         for current_row in current_data_cursor:
             #: Build a row from the current data
-            transfer_row = current_row[:]
+            transfer_row = list(current_row[:])
 
             #: Calculate DataRound and MAXADDNTIA
             transfer_row.append(data_round)
@@ -148,7 +148,7 @@ def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA
     #: Delete provider's features from current fc
     print(f'\nDeleting {provider}\'s current features from current feature class {current_data_fc}...')
     where = f'"{provider_field}" = \'{provider}\''
-    with arcpy.da.UpdateCursor(current_data_fc, where) as current_data_cursor:
+    with arcpy.da.UpdateCursor(current_data_fc, provider_field, where) as current_data_cursor:
         for row in current_data_cursor:
             current_data_cursor.deleteRow()
 
