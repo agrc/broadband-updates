@@ -63,6 +63,8 @@ def archive_provider(provider, provider_field, current_data_fc, archive_fc, data
     where = f'"{provider_field}" = \'{provider}\''
     current_data_fields = ['SHAPE@', 'UTProvCode', 'TransTech', 'MAXADDOWN', 
                            'MAXADUP', 'LastEdit', 'LastVerified', 'Identifier']
+
+    #: Apparently, MAXADDNTIA only exists in the archive, not the UBB sde or the SGID.
     archive_fields = ['SHAPE@', 'UTProvCode', 'TransTech', 'MAXADDOWN', 
                       'MAXADUP', 'LastEdit', 'LastVerified', 'Identifier', 
                       'DataRound', 'MAXADDNTIA']
@@ -89,7 +91,7 @@ def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA
     from an update feature class (current_data_fc), optionally archiving the existing data 
     to an archive feature class (archive_fc).
 
-    new_data_fc:         The new data to load into the master feature class. Must contain
+    new_data_fc:    The new data to load into the master feature class. Must contain
                     all the features for that provider; if they only send new areas,
                     be sure to manually copy the existing areas into new_data_fc before 
                     updating. The provider name will be obtained from the 'UTProvCode'
@@ -115,7 +117,7 @@ def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA
     if not arcpy.Exists(new_data_fc):
         raise ValueError(f'New feature class {new_data_fc} does not exist (typo?)')
     if not arcpy.Exists(current_data_fc):
-        raise ValueError(f'Live feature class {current_data_fc} does not exist (typo?)')
+        raise ValueError(f'Current feature class {current_data_fc} does not exist (typo?)')
     if archive and not arcpy.Exists(archive_fc):
         raise ValueError(f'Archive feature class {archive_fc} does not exist (typo?)')
 
@@ -134,45 +136,26 @@ def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA
     if provider not in providers:
         raise ValueError(f'{provider} not found in list of existing providers in {current_data_fc}.')
 
-    #: Archive provider's current features
-    #: Apparently, MAXADDNTIA only exists in the archive, not the UBB sde or the SGID.
-    #: Make layer of only that provider's features from current live feature class
-    print(f'\nMaking layer of {provider}\'s current features from {current_data_fc}...')
-    live_layer_name = 'live'
-    where_clause = f'"{provider_field}" = \'{provider}\''
-    live_layer = arcpy.MakeFeatureLayer_management(current_data_fc, live_layer_name, where_clause)
-
     #: Get number of existing features
-    existing_count = arcpy.GetCount_management(live_layer)
-    print(f'({existing_count} existing features in layer)')
-    
+    # existing_count = arcpy.GetCount_management(live_layer)
+    # print(f'({existing_count} existing features in layer)')
+
+    #: Archive provider's current features
     if archive:
         print(f'\nAppending {provider}\'s current features to archive feature class {archive_fc}...')
         archive_provider(provider, provider_field, current_data_fc, archive_fc, data_round)
 
-    #: Delete provider's features from live fc
-    print(f'\nDeleting {provider}\'s current features from master feature class {current_data_fc}...')
-    # arcpy.DeleteFeatures_management(live_layer)
+    #: Delete provider's features from current fc
+    print(f'\nDeleting {provider}\'s current features from current feature class {current_data_fc}...')
     where = f'"{provider_field}" = \'{provider}\''
     with arcpy.da.UpdateCursor(current_data_fc, where) as current_data_cursor:
         for row in current_data_cursor:
             current_data_cursor.deleteRow()
 
-    #: Append new features from local fc to live fc
-    print(f'\nAppending new features from {new_data_fc} to master feature class {current_data_fc}...')
+    #: Append new features from local fc to current fc
+    print(f'\nAppending new features from {new_data_fc} to current feature class {current_data_fc}...')
     arcpy.Append_management(new_data_fc, current_data_fc, 'TEST')
     print('\n### Finished ###\n')
-
-    #: Explicit clean up
-    arcpy.Delete_management('in_memory')
-
-    #: NOTE
-    #: For some reason, this fails with an error 464, can't get schema lock. However, if we
-    #: don't delete it, subsequent calls to update_features (ie, updating the ubb fc and then 
-    #: trying to update the SGID fc) fail because the layer already exists. Not sure yet how
-    #: to fix this, need to bang against it more in the next update. 
-    if live_layer:
-        arcpy.Delete_management(live_layer)
 
 
 def main():
@@ -183,22 +166,26 @@ def main():
     # data_round = 'Test'
 
     # provider_name = 'UTOPIA'
-    ubb_fc = r'c:\gis\Projects\Broadband\ubbmap.agrc.utah.gov.sde\UBBMAP.UBBADMIN.BB_Service'
-    sgid_fc = r'c:\gis\Projects\Broadband\UTILITIES_sgid.sde\SGID10.UTILITIES.BroadbandService'
-    ubb_archive_fc = r'c:\gis\Projects\Broadband\ubbmap.agrc.utah.gov.sde\UBBMAP.UBBADMIN.BB_Service_Archive'
-    data_round = 'Fall 2019 - October 17, 2019'
+    # ubb_fc = r'c:\gis\Projects\Broadband\ubbmap.agrc.utah.gov.sde\UBBMAP.UBBADMIN.BB_Service'
+    # sgid_fc = r'c:\gis\Projects\Broadband\UTILITIES_sgid.sde\SGID10.UTILITIES.BroadbandService'
+    # ubb_archive_fc = r'c:\gis\Projects\Broadband\ubbmap.agrc.utah.gov.sde\UBBMAP.UBBADMIN.BB_Service_Archive'
+    data_round = 'Test'
 
     # SC_fc = r'c:\gis\Projects\Broadband\Spring 2019\South Central\SouthCentralCleaned.gdb\SC_Merged_Final'
     # Utopia_fc = r'c:\gis\Projects\Broadband\Fall 2019\Utopia Coverage\UtopiaFall2019.gdb\Utopia_fall2019_template'
     # directcom = r'c:\gis\Projects\Broadband\Spring 2019\DirectCom\DirectcomCleaned.gdb\Directcom_cleaned'
     # tds = r'c:\gis\Projects\Broadband\Fall 2019\TDS\TDS.gdb\TDS_Template'
     # centurylink = r'c:\gis\Projects\Broadband\Fall 2019\CenturyLink\CenturyLink.gdb\CenturyLink_Fall19_Template'
-    frontier = r'c:\gis\Projects\Broadband\Fall 2019\Frontier\Frontier.gdb\Frontier_Fall19_Template'
+    # frontier = r'c:\gis\Projects\Broadband\Fall 2019\Frontier\Frontier.gdb\Frontier_Fall19_Template'
+    test_data = r'c:\gis\projects\broadband\broadband.gdb\script_test_new_data'
+    test_archive = r'c:\gis\projects\broadband\broadband.gdb\BB_Service_Archive'
+    test_sgid = r'c:\gis\projects\broadband\broadband.gdb\SGIDBroadbandService'
+    test_ubb = r'c:\gis\projects\broadband\broadband.gdb\BB_Service'
 
     #: Update UBB feature class
-    # update_features(frontier, ubb_fc, ubb_archive_fc, data_round, archive=True)
+    update_features('UTProvCode', test_data, test_ubb, test_archive, data_round, archive=True)
     #: Update SGID feature class
-    update_features('UTProvCode', frontier, sgid_fc, archive=False)
+    update_features('UTProvCode', test_data, test_sgid, archive=False)
 
 
 if __name__ == '__main__':
