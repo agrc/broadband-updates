@@ -1,7 +1,7 @@
 '''
 This script automates the broadband feature class update process. 
-update_features() deletes the old features from the master feature class (live_fc)
-    and copies them from the updated feature class (new_fc) to the master.
+update_features() deletes the old features from the master feature class (current_data_fc)
+    and copies them from the updated feature class (new_data_fc) to the master.
     THE UPDATED FEATURE CLASS MUST HAVE ALL THE DATA (EXISTING + NEW) FOR THAT PROVIDER
 It will optionally archive the existing data in the master feature class to an
     archive feature class (archive_fc)
@@ -55,21 +55,49 @@ def speedcode(down):
     return code
 
 
-def update_features(new_fc, live_fc, archive_fc="NA", data_round="NA", archive=True):
+def archive_provider(provider, provider_field, current_data_fc, archive_fc, data_round):
     '''
-    Replaces a broadband provider's data in a master feature class (live_fc) with data
-    from an update feature class (live_fc), optionally archiving the existing data 
+    Add data_round and max download tier (MAXADDNTIA) to provider's current data and copy to archive_fc
+    '''
+
+    where = f'"{provider_field}" = \'{provider}\''
+    current_data_fields = ['SHAPE@', 'UTProvCode', 'TransTech', 'MAXADDOWN', 
+                           'MAXADUP', 'LastEdit', 'LastVerified', 'Identifier']
+    archive_fields = ['SHAPE@', 'UTProvCode', 'TransTech', 'MAXADDOWN', 
+                      'MAXADUP', 'LastEdit', 'LastVerified', 'Identifier', 
+                      'DataRound', 'MAXADDNTIA']
+
+    with arcpy.da.SearchCursor(current_data_fc, current_data_fields, where) as current_data_cursor, arcpy.da.UpdateCursor(archive_fc, archive_fields) as archive_cursor:
+        
+        for current_row in current_data_cursor:
+            #: Build a row from the current data
+            transfer_row = current_row[:]
+
+            #: Calculate DataRound and MAXADDNTIA
+            transfer_row.append(data_round)
+            maxaddown = current_row[3]
+            transfer_row.append(speedcode(maxaddown))
+
+            #: insert row into archive data via Update Cursor
+            archive_cursor.insertRow(transfer_row)
+    
+
+
+def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA", data_round="NA", archive=True):
+    '''
+    Replaces a broadband provider's data in a master feature class (current_data_fc) with data
+    from an update feature class (current_data_fc), optionally archiving the existing data 
     to an archive feature class (archive_fc).
 
-    new_fc:         The new data to load into the master feature class. Must contain
+    new_data_fc:         The new data to load into the master feature class. Must contain
                     all the features for that provider; if they only send new areas,
-                    be sure to manually copy the existing areas into new_fc before 
+                    be sure to manually copy the existing areas into new_data_fc before 
                     updating. The provider name will be obtained from the 'UTProvCode'
                     field of this feature class; it must match the existing provider
                     name.
-    live_fc:        The provider's existing data in this feature class will be deleted 
-                    and the contents of new_fc will be written in its place.
-    archive_fc:     The provider's existing data will be copied from live_fc to this
+    current_data_fc: The provider's existing data in this feature class will be deleted 
+                    and the contents of new_data_fc will be written in its place.
+    archive_fc:     The provider's existing data will be copied from current_data_fc to this
                     feature class (if archive=True), using data_round to specify when
                     this happened.
     data_round      A text string to designate the current round of updates (for example,
@@ -80,74 +108,59 @@ def update_features(new_fc, live_fc, archive_fc="NA", data_round="NA", archive=T
                     a data_round of 'Spring 2019'.
     '''
     print('\n###')
-    print(f'Updating {live_fc}')
+    print(f'Updating {current_data_fc}')
     print('###')
 
     #: Make sure all our feature classes exist (prevents typos messing things up)
-    if not arcpy.Exists(new_fc):
-        raise ValueError(f'New feature class {new_fc} does not exist (typo?)')
-    if not arcpy.Exists(live_fc):
-        raise ValueError(f'Live feature class {live_fc} does not exist (typo?)')
+    if not arcpy.Exists(new_data_fc):
+        raise ValueError(f'New feature class {new_data_fc} does not exist (typo?)')
+    if not arcpy.Exists(current_data_fc):
+        raise ValueError(f'Live feature class {current_data_fc} does not exist (typo?)')
     if archive and not arcpy.Exists(archive_fc):
         raise ValueError(f'Archive feature class {archive_fc} does not exist (typo?)')
 
     #: Get the new provider name from the new feature class
-    with arcpy.da.SearchCursor(new_fc, 'UTProvCode') as name_cursor:
+    with arcpy.da.SearchCursor(new_data_fc, provider_field) as name_cursor:
         provider = next(name_cursor)[0]
 
     #: Make sure new provider is valid
     print('\nChecking if provider is valid...')
     providers = []
-    with arcpy.da.SearchCursor(live_fc, 'UTProvCode') as scursor:
+    with arcpy.da.SearchCursor(current_data_fc, provider_field) as scursor:
         for row in scursor:
             if row[0] not in providers:
                 providers.append(row[0])
 
     if provider not in providers:
-        raise ValueError(f'{provider} not found in list of existing providers in {live_fc}.')
+        raise ValueError(f'{provider} not found in list of existing providers in {current_data_fc}.')
 
     #: Archive provider's current features
     #: Apparently, MAXADDNTIA only exists in the archive, not the UBB sde or the SGID.
     #: Make layer of only that provider's features from current live feature class
-    print(f'\nMaking layer of {provider}\'s current features from {live_fc}...')
+    print(f'\nMaking layer of {provider}\'s current features from {current_data_fc}...')
     live_layer_name = 'live'
-    where_clause = f'"UTProvCode" = \'{provider}\''
-    live_layer = arcpy.MakeFeatureLayer_management(live_fc, live_layer_name, where_clause)
+    where_clause = f'"{provider_field}" = \'{provider}\''
+    live_layer = arcpy.MakeFeatureLayer_management(current_data_fc, live_layer_name, where_clause)
 
     #: Get number of existing features
     existing_count = arcpy.GetCount_management(live_layer)
     print(f'({existing_count} existing features in layer)')
     
     if archive:
-        #: Copy provider's features from the layer to in_memory feature class
-        print(f'\nCopying {provider}\'s current features to temporary feature class...')
-        live_copy_fc = r'in_memory\live'
-        arcpy.CopyFeatures_management(live_layer, live_copy_fc)
-
-        print('\nAdding fields and calculating...')
-        #: Add archive fields and calculate values
-        arcpy.AddField_management(live_copy_fc, 'DataRound', 'TEXT', field_length=50)
-        arcpy.AddField_management(live_copy_fc, 'MAXADDNTIA', 'TEXT', field_length=2)
-
-        with arcpy.da.UpdateCursor(live_copy_fc, ['DataRound', 'MAXADDOWN', 'MAXADDNTIA']) as ucursor:
-            for row in ucursor:
-                row[0] = data_round
-                row[2] = speedcode(row[1])
-                ucursor.updateRow(row)
-
-        #: Append from updated in_memory feature class to archive
-    
         print(f'\nAppending {provider}\'s current features to archive feature class {archive_fc}...')
-        arcpy.Append_management(live_copy_fc, archive_fc, 'NO_TEST')
-
+        archive_provider(provider, provider_field, current_data_fc, archive_fc, data_round)
 
     #: Delete provider's features from live fc
-    print(f'\nDeleting {provider}\'s current features from master feature class {live_fc}...')
-    arcpy.DeleteFeatures_management(live_layer)
+    print(f'\nDeleting {provider}\'s current features from master feature class {current_data_fc}...')
+    # arcpy.DeleteFeatures_management(live_layer)
+    where = f'"{provider_field}" = \'{provider}\''
+    with arcpy.da.UpdateCursor(current_data_fc, where) as current_data_cursor:
+        for row in current_data_cursor:
+            current_data_cursor.deleteRow()
 
     #: Append new features from local fc to live fc
-    print(f'\nAppending new features from {new_fc} to master feature class {live_fc}...')
-    arcpy.Append_management(new_fc, live_fc, 'TEST')
+    print(f'\nAppending new features from {new_data_fc} to master feature class {current_data_fc}...')
+    arcpy.Append_management(new_data_fc, current_data_fc, 'TEST')
     print('\n### Finished ###\n')
 
     #: Explicit clean up
@@ -185,7 +198,7 @@ def main():
     #: Update UBB feature class
     # update_features(frontier, ubb_fc, ubb_archive_fc, data_round, archive=True)
     #: Update SGID feature class
-    update_features(frontier, sgid_fc, archive=False)
+    update_features('UTProvCode', frontier, sgid_fc, archive=False)
 
 
 if __name__ == '__main__':
