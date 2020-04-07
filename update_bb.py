@@ -51,7 +51,36 @@ def speedcode(down):
     return code
 
 
-def archive_provider(provider, provider_field, current_data_fc, archive_fc, data_round):
+def get_provider_name(new_data_fc, current_data_fc, provider_field):
+    '''
+    Gets the provider name from provider_field in new_data_fc, verifies it exists in current_data_fc
+
+    Returns: Provider name as string
+    '''
+
+    #: Get the new provider name from the new feature class
+    with arcpy.da.SearchCursor(new_data_fc, provider_field) as name_cursor:
+        provider = next(name_cursor)[0]
+
+    #: Make sure new provider is valid
+    print('\nChecking if provider is valid...')
+    arcpy.AddMessage('\n========\n')
+    arcpy.AddMessage('Checking if provider is valid...')
+    providers = []
+    with arcpy.da.SearchCursor(current_data_fc, provider_field) as scursor:
+        for row in scursor:
+            if row[0] not in providers:
+                providers.append(row[0])
+
+    if provider not in providers:
+        raise ValueError(f'{provider} not found in list of existing providers in {current_data_fc}.')
+
+    arcpy.AddMessage(f'Updating data for provider {provider}')
+
+    return provider
+
+
+def archive_provider(provider_field, current_data_fc, archive_fc, data_round):
     '''
     Add data_round and max download tier (MAXADDNTIA) to provider's current data and copy to archive_fc
     '''
@@ -66,6 +95,10 @@ def archive_provider(provider, provider_field, current_data_fc, archive_fc, data
                       'DataRound', 'MAXADDNTIA']
 
     archive_count = 0
+
+    print(f'\nCopying {provider}\'s current features to archive feature class {archive_fc}...')
+    arcpy.AddMessage('\n========\n')
+    arcpy.AddMessage(f'Copying {provider}\'s current features to archive feature class {archive_fc}...')
 
     with arcpy.da.SearchCursor(current_data_fc, current_data_fields, where) as current_data_cursor, arcpy.da.InsertCursor(archive_fc, archive_fields) as archive_cursor:
 
@@ -84,15 +117,15 @@ def archive_provider(provider, provider_field, current_data_fc, archive_fc, data
 
     print(f'{archive_count} features archived from {current_data_fc} to {archive_fc}')
     arcpy.AddMessage(f'{archive_count} features archived from {current_data_fc} to {archive_fc}')
-    arcpy.AddMessage('\n--\n')
 
 
-def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA", data_round="NA", archive=True):
+def update_features(provider, provider_field, new_data_fc, current_data_fc):
     '''
     Replaces a broadband provider's data in a current feature class (current_data_fc) with data
-    from an update feature class (current_data_fc), optionally archiving the existing data 
-    to an archive feature class (archive_fc).
+    from an update feature class (new_data_fc)
 
+    provider:       The name of the provider; used for SQL clauses for defining what features
+                    to delete.
     provider_field: The field containing the provider's name; used for SQL clauses for
                     defining what features to delete.
     new_data_fc:    The new data to load into the current feature class. Must contain
@@ -101,15 +134,6 @@ def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA
                     updating.
     current_data_fc: The provider's existing data in this feature class will be deleted 
                     and the contents of new_data_fc will be written in its place.
-    archive_fc:     If archive=True, the provider's existing data will be copied from 
-                    current_data_fc to this feature class, using data_round to specify what
-                    update round that happened in.
-    data_round      A text string to designate the current round of updates (for example,
-                    for the spring 2019 update this was 'Spring 2019 - May 30 2019').
-                    Thus, this field indicates when data was moved into the archive,
-                    NOT when it was previously updated. If AllWest sends updates in 
-                    Spring 2019, the existing data gets copied to the archive_fc with
-                    a data_round of 'Spring 2019'.
     '''
     print('\n###')
     print(f'Updating {current_data_fc}')
@@ -117,51 +141,17 @@ def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA
     arcpy.AddMessage(f'Updating {current_data_fc}')
     print('###')
 
-    #: Make sure all our feature classes exist (prevents typos messing things up)
-    if not arcpy.Exists(new_data_fc):
-        raise ValueError(f'New feature class {new_data_fc} does not exist (typo?)')
-    if not arcpy.Exists(current_data_fc):
-        raise ValueError(f'Current feature class {current_data_fc} does not exist (typo?)')
-    if archive and not arcpy.Exists(archive_fc):
-        raise ValueError(f'Archive feature class {archive_fc} does not exist (typo?)')
-
-    #: Get the new provider name from the new feature class
-    with arcpy.da.SearchCursor(new_data_fc, provider_field) as name_cursor:
-        provider = next(name_cursor)[0]
-
-    #: Make sure new provider is valid
-    print('\nChecking if provider is valid...')
-    arcpy.AddMessage('Checking if provider is valid...')
-    providers = []
-    with arcpy.da.SearchCursor(current_data_fc, provider_field) as scursor:
-        for row in scursor:
-            if row[0] not in providers:
-                providers.append(row[0])
-
-    if provider not in providers:
-        raise ValueError(f'{provider} not found in list of existing providers in {current_data_fc}.')
-
-    arcpy.AddMessage('\n--\n')
-
-    #: Get number of existing features
-    # existing_count = arcpy.GetCount_management(live_layer)
-    # print(f'({existing_count} existing features in layer)')
-
-    #: Archive provider's current features
-    if archive:
-        print(f'\nCopying {provider}\'s current features to archive feature class {archive_fc}...')
-        arcpy.AddMessage(f'Copying {provider}\'s current features to archive feature class {archive_fc}...')
-        archive_provider(provider, provider_field, current_data_fc, archive_fc, data_round)
-
     #: Delete provider's features from current fc
     deleted_records = 0
     print(f'\nDeleting {provider}\'s current features from current feature class {current_data_fc}...')
     arcpy.AddMessage(f'Deleting {provider}\'s current features from current feature class {current_data_fc}...')
     where = f'"{provider_field}" = \'{provider}\''
+
     with arcpy.da.UpdateCursor(current_data_fc, provider_field, where) as current_data_cursor:
         for row in current_data_cursor:
             current_data_cursor.deleteRow()
             deleted_records += 1
+            
     print(f'{deleted_records} records deleted from {current_data_fc}')
     arcpy.AddMessage(f'{deleted_records} records deleted from {current_data_fc}')
     arcpy.AddMessage('\n--\n')
@@ -170,6 +160,7 @@ def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA
     copied_records = 0
     print(f'\nCopying new features from {new_data_fc} to current feature class {current_data_fc}...')
     arcpy.AddMessage(f'Copying new features from {new_data_fc} to current feature class {current_data_fc}...')
+
     with arcpy.da.SearchCursor(new_data_fc, '*') as new_data_cursor, arcpy.da.InsertCursor(current_data_fc, '*') as current_data_cursor:
         for row in new_data_cursor:
             current_data_cursor.insertRow(row)
@@ -187,6 +178,7 @@ def generate_identifiers(new_data_fc):
     '''
 
     print(f'\nChecking identifier field...')
+    arcpy.AddMessage('\n========\n')
     arcpy.AddMessage('Checking identifier field...')
 
     fields = [f.name for f in arcpy.ListFields(new_data_fc)]
@@ -251,9 +243,13 @@ if __name__ == '__main__':
     provider_field = arcpy.GetParameterAsText(5)
 
 
-    #: Generate Identifier for new data:
+    #: Validate and return provider name
+    provider = get_provider_name(new_data_fc, ubb_fc, provider_field)
+    #: Generate Identifier for new data
     generate_identifiers(new_data_fc)
+    #: Archive existing features
+    archive_provider(provider_field, ubb_fc, archive_fc, data_round)
     #: Update UBB feature class
-    update_features(provider_field, new_data_fc, ubb_fc, archive_fc, data_round, archive=True)
+    update_features(provider, provider_field, new_data_fc, ubb_fc)
     #: Update SGID feature class
-    update_features(provider_field, new_data_fc, sgid_fc, archive=False)
+    update_features(provider, provider_field, new_data_fc, sgid_fc)
