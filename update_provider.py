@@ -25,6 +25,7 @@ def speedcode(down):
     '''
     Calculates the Utah Speed Code based on the max advertised download rate in Mb/s
     '''
+
     down = float(down)
     if down <= .2:
         code = '1'
@@ -56,7 +57,8 @@ def speedcode(down):
 
 def get_provider_name(new_data_fc, current_data_fc, provider_field):
     '''
-    Gets the provider name from provider_field in new_data_fc, verifies it exists in current_data_fc
+    Gets the provider name from provider_field in the first record of new_data_fc,
+    verifies it exists in current_data_fc.
 
     Returns: Provider name as string
     '''
@@ -85,10 +87,23 @@ def get_provider_name(new_data_fc, current_data_fc, provider_field):
 
 def archive_provider(provider_field, current_data_fc, archive_fc, data_round):
     '''
-    Add data_round and max download tier (MAXADDNTIA) to provider's current data and copy to archive_fc
+    Archive existing data. Add data_round and max download tier (MAXADDNTIA) to provider's current data and copy to an archive feature class.
+
+    provider_field: The field containing the name of the provider; used for SQL clauses
+                    for defining what features to copy over.
+    current_data_fc: All of the provider's existing features in this feature class will be
+                    copied over to archive_fc after adding data round and max download
+                    tier.
+    archive_fc:     Archive destination. Should have same schema as source plus MAXADDNTIA
+                    and DataRound fields.
+    data_round      A text string to designate the current round of updates (for example,
+                    for the spring 2019 update this was 'Spring 2019 - May 30 2019').
+                    Thus, this field indicates when data was moved into the archive,
+                    NOT when it was previously updated. If AllWest sends updates in
+                    Spring 2019, the existing data gets copied to the archive_fc with
+                    a data_round of 'Spring 2019'.
     '''
 
-    where = f'"{provider_field}" = \'{provider}\''
     current_data_fields = ['SHAPE@', 'UTProvCode', 'TransTech', 'MAXADDOWN', 
                            'MAXADUP', 'LastEdit', 'LastVerified', 'Identifier']
 
@@ -98,14 +113,15 @@ def archive_provider(provider_field, current_data_fc, archive_fc, data_round):
                       'DataRound', 'MAXADDNTIA']
 
     archive_count = 0
+    where = f'"{provider_field}" = \'{provider}\''
 
     print(f'\nCopying {provider}\'s current features to archive feature class {archive_fc}...')
     arcpy.AddMessage('\n========\n')
     arcpy.AddMessage(f'Copying {provider}\'s current features to archive feature class {archive_fc}...')
 
     with arcpy.da.SearchCursor(current_data_fc, current_data_fields, where) as current_data_cursor, arcpy.da.InsertCursor(archive_fc, archive_fields) as archive_cursor:
-
         for current_row in current_data_cursor:
+
             #: Build a row from the current data
             transfer_row = list(current_row[:])
 
@@ -138,6 +154,7 @@ def update_features(provider, provider_field, new_data_fc, current_data_fc):
     current_data_fc: The provider's existing data in this feature class will be deleted 
                     and the contents of new_data_fc will be written in its place.
     '''
+
     print('\n###')
     print(f'Updating {current_data_fc}')
     arcpy.AddMessage('\n========\n')
@@ -159,7 +176,7 @@ def update_features(provider, provider_field, new_data_fc, current_data_fc):
     arcpy.AddMessage(f'{deleted_records} records deleted from {current_data_fc}')
     arcpy.AddMessage('\n--\n')
     
-    #: Append new features from local fc to current fc
+    #: Copy new features from local fc to current fc
     copied_records = 0
     print(f'\nCopying new features from {new_data_fc} to current feature class {current_data_fc}...')
     arcpy.AddMessage(f'Copying new features from {new_data_fc} to current feature class {current_data_fc}...')
@@ -175,7 +192,9 @@ def update_features(provider, provider_field, new_data_fc, current_data_fc):
 
 def generate_identifiers(new_data_fc):
     '''
-    Populates the 'Identifier' field of new_data_fc with a unique identifier using uuid.uuid4. The uuid is upper-cased and wrapped in {}. The 'Identifier' field is created if it is not present already.
+    Populates the 'Identifier' field of new_data_fc with a unique identifier using
+    uuid.uuid4. The uuid is upper-cased and wrapped in {}. The 'Identifier' field is
+    created if it is not present already.
 
     Returns: The number of records updated
     '''
@@ -184,12 +203,14 @@ def generate_identifiers(new_data_fc):
     arcpy.AddMessage('\n========\n')
     arcpy.AddMessage('Checking identifier field...')
 
+    #: Add 'Identifier' field if it doesn't exist already
     fields = [f.name for f in arcpy.ListFields(new_data_fc)]
     if 'Identifier' not in fields:
         print(f'Adding "Identifier" field to {new_data_fc}')
         arcpy.AddMessage(f'Adding "Identifier" field to {new_data_fc}')
         arcpy.AddField_management(new_data_fc, 'Identifier', 'TEXT', field_length=50)
 
+    #: Calculate properly-formatted UUID
     update_counter = 0
     with arcpy.da.UpdateCursor(new_data_fc, ['Identifier']) as new_data_cursor:
         for row in new_data_cursor:
