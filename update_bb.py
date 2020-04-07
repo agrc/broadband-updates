@@ -84,6 +84,7 @@ def archive_provider(provider, provider_field, current_data_fc, archive_fc, data
 
     print(f'{archive_count} features archived from {current_data_fc} to {archive_fc}')
     arcpy.AddMessage(f'{archive_count} features archived from {current_data_fc} to {archive_fc}')
+    arcpy.AddMessage('\n--\n')
 
 
 def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA", data_round="NA", archive=True):
@@ -112,6 +113,7 @@ def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA
     '''
     print('\n###')
     print(f'Updating {current_data_fc}')
+    arcpy.AddMessage('\n========\n')
     arcpy.AddMessage(f'Updating {current_data_fc}')
     print('###')
 
@@ -129,7 +131,7 @@ def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA
 
     #: Make sure new provider is valid
     print('\nChecking if provider is valid...')
-    arcpy.AddMessage('\nChecking if provider is valid...')
+    arcpy.AddMessage('Checking if provider is valid...')
     providers = []
     with arcpy.da.SearchCursor(current_data_fc, provider_field) as scursor:
         for row in scursor:
@@ -139,20 +141,22 @@ def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA
     if provider not in providers:
         raise ValueError(f'{provider} not found in list of existing providers in {current_data_fc}.')
 
+    arcpy.AddMessage('\n--\n')
+
     #: Get number of existing features
     # existing_count = arcpy.GetCount_management(live_layer)
     # print(f'({existing_count} existing features in layer)')
 
     #: Archive provider's current features
     if archive:
-        print(f'\nAppending {provider}\'s current features to archive feature class {archive_fc}...')
-        arcpy.AddMessage(f'\nAppending {provider}\'s current features to archive feature class {archive_fc}...')
+        print(f'\nCopying {provider}\'s current features to archive feature class {archive_fc}...')
+        arcpy.AddMessage(f'Copying {provider}\'s current features to archive feature class {archive_fc}...')
         archive_provider(provider, provider_field, current_data_fc, archive_fc, data_round)
 
     #: Delete provider's features from current fc
     deleted_records = 0
     print(f'\nDeleting {provider}\'s current features from current feature class {current_data_fc}...')
-    arcpy.AddMessage(f'\nDeleting {provider}\'s current features from current feature class {current_data_fc}...')
+    arcpy.AddMessage(f'Deleting {provider}\'s current features from current feature class {current_data_fc}...')
     where = f'"{provider_field}" = \'{provider}\''
     with arcpy.da.UpdateCursor(current_data_fc, provider_field, where) as current_data_cursor:
         for row in current_data_cursor:
@@ -160,11 +164,18 @@ def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA
             deleted_records += 1
     print(f'{deleted_records} records deleted from {current_data_fc}')
     arcpy.AddMessage(f'{deleted_records} records deleted from {current_data_fc}')
+    arcpy.AddMessage('\n--\n')
     
     #: Append new features from local fc to current fc
-    print(f'\nAppending new features from {new_data_fc} to current feature class {current_data_fc}...')
-    arcpy.AddMessage(f'\nAppending new features from {new_data_fc} to current feature class {current_data_fc}...')
-    arcpy.Append_management(new_data_fc, current_data_fc, 'TEST')
+    copied_records = 0
+    print(f'\nCopying new features from {new_data_fc} to current feature class {current_data_fc}...')
+    arcpy.AddMessage(f'Copying new features from {new_data_fc} to current feature class {current_data_fc}...')
+    with arcpy.da.SearchCursor(new_data_fc, '*') as new_data_cursor, arcpy.da.InsertCursor(current_data_fc, '*') as current_data_cursor:
+        for row in new_data_cursor:
+            current_data_cursor.insertRow(row)
+            copied_records += 1
+
+    arcpy.AddMessage(f'{copied_records} records copied from {new_data_fc} to {current_data_fc}')
     print('\n### Finished ###\n')
 
 
@@ -174,6 +185,9 @@ def generate_identifiers(new_data_fc):
 
     Returns: The number of records updated
     '''
+
+    print(f'\nChecking identifier field...')
+    arcpy.AddMessage('Checking identifier field...')
 
     fields = [f.name for f in arcpy.ListFields(new_data_fc)]
     if 'Identifier' not in fields:
