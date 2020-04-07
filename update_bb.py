@@ -164,7 +164,24 @@ def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA
 
 
 def generate_identifiers(new_data_fc):
-    guid = f'{{{str(uuid.uuid4()).upper()}}}'
+    '''
+    Populates the 'Identifier' field of new_data_fc with a unique identifier using uuid.uuid4. The uuid is upper-cased and wrapped in {}. The 'Identifier' field is created if it is not present already.
+
+    Returns: The number of records updated
+    '''
+
+    fields = [f.name for f in arcpy.ListFields(new_data_fc)]
+    if 'Identifier' not in fields:
+        print(f'Adding "Identifier" field to {new_data_fc}')
+        arcpy.AddMessage(f'Adding "Identifier" field to {new_data_fc}')
+        arcpy.AddField_management(new_data_fc, 'Identifier', 'TEXT', field_length=50)
+
+    with arcpy.da.UpdateCursor(new_data_fc, ['Identifier']) as new_data_cursor:
+        for row in new_data_cursor:
+            #: Triple {{{ needed to escape f-string brackets and give us a single { in the output
+            guid = f'{{{str(uuid.uuid4()).upper()}}}'
+            row[0] = guid
+            new_data_cursor.updateRow(row)
 
 def main():
     # provider_name = 'South Central'
@@ -177,7 +194,7 @@ def main():
     # ubb_fc = r'c:\gis\Projects\Broadband\ubbmap.agrc.utah.gov.sde\UBBMAP.UBBADMIN.BB_Service'
     # sgid_fc = r'c:\gis\Projects\Broadband\UTILITIES_sgid.sde\SGID10.UTILITIES.BroadbandService'
     # ubb_archive_fc = r'c:\gis\Projects\Broadband\ubbmap.agrc.utah.gov.sde\UBBMAP.UBBADMIN.BB_Service_Archive'
-    data_round = 'Test'
+    # data_round = 'Test'
 
     # SC_fc = r'c:\gis\Projects\Broadband\Spring 2019\South Central\SouthCentralCleaned.gdb\SC_Merged_Final'
     # Utopia_fc = r'c:\gis\Projects\Broadband\Fall 2019\Utopia Coverage\UtopiaFall2019.gdb\Utopia_fall2019_template'
@@ -206,6 +223,9 @@ if __name__ == '__main__':
     data_round = arcpy.GetParameterAsText(4)
     provider_field = arcpy.GetParameterAsText(5)
 
+
+    #: Generate Identifier for new data:
+    generate_identifiers(new_data_fc)
     #: Update UBB feature class
     update_features(provider_field, new_data_fc, ubb_fc, archive_fc, data_round, archive=True)
     #: Update SGID feature class
