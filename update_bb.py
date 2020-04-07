@@ -1,15 +1,10 @@
 '''
 This script automates the broadband feature class update process. 
-update_features() deletes the old features from the master feature class (current_data_fc)
-    and copies them from the updated feature class (new_data_fc) to the master.
+update_features() deletes the old features from the current feature class (current_data_fc)
+    and copies them from the updated feature class (new_data_fc) to the current.
     THE UPDATED FEATURE CLASS MUST HAVE ALL THE DATA (EXISTING + NEW) FOR THAT PROVIDER
 It will optionally archive the existing data in the master feature class to an
     archive feature class (archive_fc)
-
-Generally, you will call update_features() twice- once with archive enabled to copy
-    the new data into the UBBMap BB_Service feature class while archiving the existing
-    data to BB_Service_Archive, and then again w/o archiving to copy the new data 
-    to SGID.UTILITIES.BroadbandService feature class.
 '''
 
 #: Manually create new feature class
@@ -87,21 +82,21 @@ def archive_provider(provider, provider_field, current_data_fc, archive_fc, data
 
 def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA", data_round="NA", archive=True):
     '''
-    Replaces a broadband provider's data in a master feature class (current_data_fc) with data
+    Replaces a broadband provider's data in a current feature class (current_data_fc) with data
     from an update feature class (current_data_fc), optionally archiving the existing data 
     to an archive feature class (archive_fc).
 
-    new_data_fc:    The new data to load into the master feature class. Must contain
+    provider_field: The field containing the provider's name; used for SQL clauses for
+                    defining what features to delete.
+    new_data_fc:    The new data to load into the current feature class. Must contain
                     all the features for that provider; if they only send new areas,
                     be sure to manually copy the existing areas into new_data_fc before 
-                    updating. The provider name will be obtained from the 'UTProvCode'
-                    field of this feature class; it must match the existing provider
-                    name.
+                    updating.
     current_data_fc: The provider's existing data in this feature class will be deleted 
                     and the contents of new_data_fc will be written in its place.
-    archive_fc:     The provider's existing data will be copied from current_data_fc to this
-                    feature class (if archive=True), using data_round to specify when
-                    this happened.
+    archive_fc:     If archive=True, the provider's existing data will be copied from 
+                    current_data_fc to this feature class, using data_round to specify what
+                    update round that happened in.
     data_round      A text string to designate the current round of updates (for example,
                     for the spring 2019 update this was 'Spring 2019 - May 30 2019').
                     Thus, this field indicates when data was moved into the archive,
@@ -149,13 +144,17 @@ def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA
         archive_provider(provider, provider_field, current_data_fc, archive_fc, data_round)
 
     #: Delete provider's features from current fc
+    deleted_records = 0
     print(f'\nDeleting {provider}\'s current features from current feature class {current_data_fc}...')
     arcpy.AddMessage(f'\nDeleting {provider}\'s current features from current feature class {current_data_fc}...')
     where = f'"{provider_field}" = \'{provider}\''
     with arcpy.da.UpdateCursor(current_data_fc, provider_field, where) as current_data_cursor:
         for row in current_data_cursor:
             current_data_cursor.deleteRow()
-
+            deleted_records += 1
+    print(f'{deleted_records} records deleted from {current_data_fc}')
+    arcpy.AddMessage(f'{deleted_records} records deleted from {current_data_fc}')
+    
     #: Append new features from local fc to current fc
     print(f'\nAppending new features from {new_data_fc} to current feature class {current_data_fc}...')
     arcpy.AddMessage(f'\nAppending new features from {new_data_fc} to current feature class {current_data_fc}...')
@@ -176,12 +175,20 @@ def generate_identifiers(new_data_fc):
         arcpy.AddMessage(f'Adding "Identifier" field to {new_data_fc}')
         arcpy.AddField_management(new_data_fc, 'Identifier', 'TEXT', field_length=50)
 
+    update_counter = 0
     with arcpy.da.UpdateCursor(new_data_fc, ['Identifier']) as new_data_cursor:
         for row in new_data_cursor:
             #: Triple {{{ needed to escape f-string brackets and give us a single { in the output
             guid = f'{{{str(uuid.uuid4()).upper()}}}'
             row[0] = guid
             new_data_cursor.updateRow(row)
+            update_counter += 1
+
+    print(f'Identifier added for {update_counter} records in {new_data_fc}')
+    arcpy.AddMessage(f'Identifier added for {update_counter} records in {new_data_fc}')
+
+    return update_counter
+
 
 def main():
     # provider_name = 'South Central'
