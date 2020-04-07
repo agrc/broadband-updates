@@ -14,8 +14,11 @@ It will optionally archive the existing data in the master feature class to an
 #: Delete existing data from SGID feature class
 #: Copy data from new feature class into SGID feature class
 
-import arcpy
+import sys
+import traceback
 import uuid
+
+import arcpy
 
 
 def speedcode(down):
@@ -211,14 +214,25 @@ if __name__ == '__main__':
     data_round = arcpy.GetParameterAsText(4)
     provider_field = arcpy.GetParameterAsText(5)
 
+    try:
+        #: Validate and return provider name
+        provider = get_provider_name(new_data_fc, ubb_fc, provider_field)
+        #: Generate Identifier for new data
+        generate_identifiers(new_data_fc)
+        #: Archive existing features
+        archive_provider(provider_field, ubb_fc, archive_fc, data_round)
+        #: Update UBB feature class
+        update_features(provider, provider_field, new_data_fc, ubb_fc)
+        #: Update SGID feature class
+        update_features(provider, provider_field, new_data_fc, sgid_fc)
+    
+    except arcpy.ExecuteError:
+        arcpy.AddError(arcpy.GetMessages(2))
+        arcpy.AddMessage('========')
+        arcpy.AddMessage(traceback.format_exc())
 
-    #: Validate and return provider name
-    provider = get_provider_name(new_data_fc, ubb_fc, provider_field)
-    #: Generate Identifier for new data
-    generate_identifiers(new_data_fc)
-    #: Archive existing features
-    archive_provider(provider_field, ubb_fc, archive_fc, data_round)
-    #: Update UBB feature class
-    update_features(provider, provider_field, new_data_fc, ubb_fc)
-    #: Update SGID feature class
-    update_features(provider, provider_field, new_data_fc, sgid_fc)
+    except:
+        error_message = sys.exc_info()[1]
+        arcpy.AddError(error_message)
+        arcpy.AddMessage('========')
+        arcpy.AddMessage(traceback.format_exc())
