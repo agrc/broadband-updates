@@ -20,6 +20,7 @@ Generally, you will call update_features() twice- once with archive enabled to c
 #: Copy data from new feature class into SGID feature class
 
 import arcpy
+import uuid
 
 
 def speedcode(down):
@@ -82,7 +83,6 @@ def archive_provider(provider, provider_field, current_data_fc, archive_fc, data
 
             #: insert row into archive data via Update Cursor
             archive_cursor.insertRow(transfer_row)
-    
 
 
 def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA", data_round="NA", archive=True):
@@ -111,6 +111,7 @@ def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA
     '''
     print('\n###')
     print(f'Updating {current_data_fc}')
+    arcpy.AddMessage(f'Updating {current_data_fc}')
     print('###')
 
     #: Make sure all our feature classes exist (prevents typos messing things up)
@@ -127,6 +128,7 @@ def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA
 
     #: Make sure new provider is valid
     print('\nChecking if provider is valid...')
+    arcpy.AddMessage('\nChecking if provider is valid...')
     providers = []
     with arcpy.da.SearchCursor(current_data_fc, provider_field) as scursor:
         for row in scursor:
@@ -143,10 +145,12 @@ def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA
     #: Archive provider's current features
     if archive:
         print(f'\nAppending {provider}\'s current features to archive feature class {archive_fc}...')
+        arcpy.AddMessage(f'\nAppending {provider}\'s current features to archive feature class {archive_fc}...')
         archive_provider(provider, provider_field, current_data_fc, archive_fc, data_round)
 
     #: Delete provider's features from current fc
     print(f'\nDeleting {provider}\'s current features from current feature class {current_data_fc}...')
+    arcpy.AddMessage(f'\nDeleting {provider}\'s current features from current feature class {current_data_fc}...')
     where = f'"{provider_field}" = \'{provider}\''
     with arcpy.da.UpdateCursor(current_data_fc, provider_field, where) as current_data_cursor:
         for row in current_data_cursor:
@@ -154,9 +158,13 @@ def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA
 
     #: Append new features from local fc to current fc
     print(f'\nAppending new features from {new_data_fc} to current feature class {current_data_fc}...')
+    arcpy.AddMessage(f'\nAppending new features from {new_data_fc} to current feature class {current_data_fc}...')
     arcpy.Append_management(new_data_fc, current_data_fc, 'TEST')
     print('\n### Finished ###\n')
 
+
+def generate_identifiers(new_data_fc):
+    guid = f'{{{str(uuid.uuid4()).upper()}}}'
 
 def main():
     # provider_name = 'South Central'
@@ -182,11 +190,23 @@ def main():
     test_sgid = r'c:\gis\projects\broadband\broadband.gdb\SGIDBroadbandService'
     test_ubb = r'c:\gis\projects\broadband\broadband.gdb\BB_Service'
 
-    #: Update UBB feature class
-    update_features('UTProvCode', test_data, test_ubb, test_archive, data_round, archive=True)
-    #: Update SGID feature class
-    update_features('UTProvCode', test_data, test_sgid, archive=False)
+    # #: Update UBB feature class
+    # update_features('UTProvCode', test_data, test_ubb, test_archive, data_round, archive=True)
+    # #: Update SGID feature class
+    # update_features('UTProvCode', test_data, test_sgid, archive=False)
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+
+    new_data_fc = arcpy.GetParameterAsText(0)
+    archive_fc = arcpy.GetParameterAsText(1)
+    ubb_fc = arcpy.GetParameterAsText(2)
+    sgid_fc = arcpy.GetParameterAsText(3)
+    data_round = arcpy.GetParameterAsText(4)
+    provider_field = arcpy.GetParameterAsText(5)
+
+    #: Update UBB feature class
+    update_features(provider_field, new_data_fc, ubb_fc, archive_fc, data_round, archive=True)
+    #: Update SGID feature class
+    update_features(provider_field, new_data_fc, sgid_fc, archive=False)
