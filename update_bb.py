@@ -151,7 +151,7 @@ def update_features(provider, provider_field, new_data_fc, current_data_fc):
         for row in current_data_cursor:
             current_data_cursor.deleteRow()
             deleted_records += 1
-            
+
     print(f'{deleted_records} records deleted from {current_data_fc}')
     arcpy.AddMessage(f'{deleted_records} records deleted from {current_data_fc}')
     arcpy.AddMessage('\n--\n')
@@ -202,38 +202,7 @@ def generate_identifiers(new_data_fc):
     return update_counter
 
 
-def main():
-    # provider_name = 'South Central'
-    # ubb_fc = r'c:\gis\Projects\Broadband\scratch\script_test.gdb\BB_Service'
-    # ubb_archive_fc = r'c:\gis\Projects\Broadband\scratch\script_test.gdb\BB_Service_Archive'
-    # cleaned_updates_fc = r'c:\gis\Projects\Broadband\Spring 2019\South Central\SouthCentralCleaned.gdb\SC_Merged_Final'
-    # data_round = 'Test'
-
-    # provider_name = 'UTOPIA'
-    # ubb_fc = r'c:\gis\Projects\Broadband\ubbmap.agrc.utah.gov.sde\UBBMAP.UBBADMIN.BB_Service'
-    # sgid_fc = r'c:\gis\Projects\Broadband\UTILITIES_sgid.sde\SGID10.UTILITIES.BroadbandService'
-    # ubb_archive_fc = r'c:\gis\Projects\Broadband\ubbmap.agrc.utah.gov.sde\UBBMAP.UBBADMIN.BB_Service_Archive'
-    # data_round = 'Test'
-
-    # SC_fc = r'c:\gis\Projects\Broadband\Spring 2019\South Central\SouthCentralCleaned.gdb\SC_Merged_Final'
-    # Utopia_fc = r'c:\gis\Projects\Broadband\Fall 2019\Utopia Coverage\UtopiaFall2019.gdb\Utopia_fall2019_template'
-    # directcom = r'c:\gis\Projects\Broadband\Spring 2019\DirectCom\DirectcomCleaned.gdb\Directcom_cleaned'
-    # tds = r'c:\gis\Projects\Broadband\Fall 2019\TDS\TDS.gdb\TDS_Template'
-    # centurylink = r'c:\gis\Projects\Broadband\Fall 2019\CenturyLink\CenturyLink.gdb\CenturyLink_Fall19_Template'
-    # frontier = r'c:\gis\Projects\Broadband\Fall 2019\Frontier\Frontier.gdb\Frontier_Fall19_Template'
-    test_data = r'c:\gis\projects\broadband\broadband.gdb\script_test_new_data'
-    test_archive = r'c:\gis\projects\broadband\broadband.gdb\BB_Service_Archive'
-    test_sgid = r'c:\gis\projects\broadband\broadband.gdb\SGIDBroadbandService'
-    test_ubb = r'c:\gis\projects\broadband\broadband.gdb\BB_Service'
-
-    # #: Update UBB feature class
-    # update_features('UTProvCode', test_data, test_ubb, test_archive, data_round, archive=True)
-    # #: Update SGID feature class
-    # update_features('UTProvCode', test_data, test_sgid, archive=False)
-
-
 if __name__ == '__main__':
-    # main()
 
     new_data_fc = arcpy.GetParameterAsText(0)
     archive_fc = arcpy.GetParameterAsText(1)
