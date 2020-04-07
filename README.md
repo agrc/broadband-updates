@@ -2,6 +2,11 @@
 
 Scripts to make the manual broadband provider data update process easier.
 
+## Installation
+
+- Clone the repo to your local machine.
+- Navigate to the included toolbox in ArcGIS Pro's catalog.
+
 ## update_provider.py
 
 This is a script tool (in the accompanying toolbox) to assist in the update process for each broadband provider. After creating a new feature class containing all of the provider's service areas for the next update (all the new/changed areas as well as any unchanged areas), run this tool to load the data. It automatically performs the following tasks:
