@@ -65,8 +65,10 @@ def archive_provider(provider, provider_field, current_data_fc, archive_fc, data
                       'MAXADUP', 'LastEdit', 'LastVerified', 'Identifier', 
                       'DataRound', 'MAXADDNTIA']
 
+    archive_count = 0
+
     with arcpy.da.SearchCursor(current_data_fc, current_data_fields, where) as current_data_cursor, arcpy.da.InsertCursor(archive_fc, archive_fields) as archive_cursor:
-        
+
         for current_row in current_data_cursor:
             #: Build a row from the current data
             transfer_row = list(current_row[:])
@@ -78,6 +80,10 @@ def archive_provider(provider, provider_field, current_data_fc, archive_fc, data
 
             #: insert row into archive data via Update Cursor
             archive_cursor.insertRow(transfer_row)
+            archive_count += 1
+
+    print(f'{archive_count} features archived from {current_data_fc} to {archive_fc}')
+    arcpy.AddMessage(f'{archive_count} features archived from {current_data_fc} to {archive_fc}')
 
 
 def update_features(provider_field, new_data_fc, current_data_fc, archive_fc="NA", data_round="NA", archive=True):
