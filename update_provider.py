@@ -55,40 +55,36 @@ def speedcode(down):
     return code
 
 
-def get_provider_name(new_data_fc, current_data_fc, provider_field):
+def validate_provider_name(current_data_fc, provider_field, provider_name):
     '''
-    Gets the provider name from provider_field in the first record of new_data_fc,
-    verifies it exists in current_data_fc.
+    Verifies that provider exists in current_data_fc.
 
     Returns: Provider name as string
     '''
 
-    #: Get the new provider name from the new feature class
-    with arcpy.da.SearchCursor(new_data_fc, provider_field) as name_cursor:
-        provider = next(name_cursor)[0]
-
-    #: Make sure new provider is valid
-    print('\nChecking if provider is valid...')
+    print(f'Checking if {provider_name} is found in {provider_field} of {current_data_fc}...')
     arcpy.AddMessage('\n========\n')
-    arcpy.AddMessage('Checking if provider is valid...')
+    arcpy.AddMessage(f'Checking if {provider_name} is found in {provider_field} of {current_data_fc}...')
     providers = []
     with arcpy.da.SearchCursor(current_data_fc, provider_field) as scursor:
         for row in scursor:
             if row[0] not in providers:
                 providers.append(row[0])
 
-    if provider not in providers:
-        raise ValueError(f'{provider} not found in list of existing providers in {current_data_fc}.')
+    if provider_name not in providers:
+        raise ValueError(f'{provider_name} not found in list of existing providers in {current_data_fc}.')
 
-    arcpy.AddMessage(f'Updating data for provider {provider}')
+    arcpy.AddMessage(f'Updating data for provider {provider_name}')
 
-    return provider
+    return provider_name
 
 
-def archive_provider(provider_field, current_data_fc, archive_fc, data_round):
+def archive_provider(provider, provider_field, current_data_fc, archive_fc, data_round):
     '''
     Archive existing data. Add data_round and max download tier (MAXADDNTIA) to provider's current data and copy to an archive feature class.
 
+    provider:       The name of the provider; used for SQL clauses for defining
+                    what features to copy over.
     provider_field: The field containing the name of the provider; used for SQL clauses
                     for defining what features to copy over.
     current_data_fc: All of the provider's existing features in this feature class will be
@@ -236,14 +232,15 @@ if __name__ == '__main__':
     sgid_fc = arcpy.GetParameterAsText(3)
     data_round = arcpy.GetParameterAsText(4)
     provider_field = arcpy.GetParameterAsText(5)
+    provider_name = arcpy.GetParameterAsText(6)
 
     try:
         #: Validate and return provider name
-        provider = get_provider_name(new_data_fc, ubb_fc, provider_field)
+        provider = validate_provider_name(ubb_fc, provider_field, provider_name)
         #: Generate Identifier for new data
         generate_identifiers(new_data_fc)
         #: Archive existing features
-        archive_provider(provider_field, ubb_fc, archive_fc, data_round)
+        archive_provider(provider, provider_field, ubb_fc, archive_fc, data_round)
         #: Update UBB feature class
         update_features(provider, provider_field, new_data_fc, ubb_fc)
         #: Update SGID feature class
