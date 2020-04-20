@@ -181,7 +181,9 @@ def update_features(provider, provider_field, new_data_fc, current_data_fc):
     print(f'\nCopying new features from {new_data_fc} to current feature class {current_data_fc}...')
     arcpy.AddMessage(f'Copying new features from {new_data_fc} to current feature class {current_data_fc}...')
 
-    with arcpy.da.SearchCursor(new_data_fc, '*') as new_data_cursor, arcpy.da.InsertCursor(current_data_fc, '*') as current_data_cursor:
+    fields = ['UTProvCode', 'TransTech', 'MAXADDOWN', 'MAXADUP', 'LastEdit', 'LastVerified', 'Identifier', 'SHAPE@']
+    with arcpy.da.SearchCursor(new_data_fc, fields) as new_data_cursor, \
+         arcpy.da.InsertCursor(current_data_fc, fields) as current_data_cursor:
         for row in new_data_cursor:
             current_data_cursor.insertRow(row)
             copied_records += 1
